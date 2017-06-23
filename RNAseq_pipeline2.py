@@ -1,4 +1,4 @@
-#!/srv/gs1/software/python/python-2.7/bin/python
+#!/usr/bin/python
 import subprocess
 import os
 import re
@@ -195,9 +195,9 @@ def genome_dict(machine = "scg3",  genome = 'mm9'):
             'bowtie2': '/tank/genomes/Mus_musculus/UCSC/mm9/Sequence/Bowtie2Index',
             'genome_chr': '/tank/genomes/Mus_musculus/UCSC/mm9/Sequence/Chromosomes',
             'genome': '/tank/genomes/Mus_musculus/UCSC/mm9/Sequence/WholeGenomeFasta',
-            'mappability': '/tank/genomes/align2raw/umap/globalmap_k20tok54',
-            'RSEM': '/tank/genomes/Mus_musculus/RSEM/RSEM',
-            'gencode': '/srv/gsfs0/projects/cho/annotation'
+            'mappability': '/tank/genomes/mm9/mappability/globalmap_k20tok54',
+            'RSEM': '/tank/genomes/mm9/RSEM',
+            'gencode': '/tank/annotation'
         }
     elif machine == 'scg3' and genome == 'hg19':
         genome_file = {
