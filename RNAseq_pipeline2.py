@@ -190,7 +190,7 @@ def genome_dict(machine = "scg3",  genome = 'mm9'):
            'RSEM': '/srv/gsfs0/projects/fuller/Jamie/genomes/mm9/RSEM/RSEM',
            'gencode': '/srv/gsfs0/projects/fuller/Jamie/annotation/gencode.vM1.annotation.gtf'
         }
-    elif machine == 'cho_oro' and genome == 'mm9':
+    elif machine == 'cerebellum' and genome == 'mm9':
         genome_file = {
             'bowtie2': '/tank/genomes/Mus_musculus/UCSC/mm9/Sequence/Bowtie2Index',
             'genome_chr': '/tank/genomes/Mus_musculus/UCSC/mm9/Sequence/Chromosomes',
@@ -198,6 +198,13 @@ def genome_dict(machine = "scg3",  genome = 'mm9'):
             'mappability': '/tank/genomes/align2raw/umap/globalmap_k20tok54',
             'RSEM': '/tank/genomes/Mus_musculus/RSEM/RSEM',
             'gencode': '/srv/gsfs0/projects/cho/annotation'
+        }
+    elif machine == 'scg3' and genome == 'hg19':
+        genome_file = {
+            'bowtie2': '/srv/gsfs0/projects/fuller/Jamie/bowtie2_indexes/hg19',
+            'genome_chr': '/srv/gsfs0/projects/fuller/Jamie/genomes/hg19',
+            'chr_size': '/srv/gsfs0/projects/fuller/Jamie/annotation/hg19.chrom.sizes',
+            'gencode': '/srv/gsfs0/projects/fuller/Jamie/annotation/gencode.v19.annotation.gtf'
         }
     else: 
         print "error: machine not specified or no information given"
@@ -502,7 +509,7 @@ def main():
     parser.add_argument('-m','--meta', help='table containing new_filename<tab>index, the index can be any text used to uniquely identify the fastq files', required=True)
     parser.add_argument('-o','--output', help='directory to create new files in, default is current working directory', default='',  required=False)
     parser.add_argument('-d','--directory', help='directory storing fastq files, default current working directory', default='',  required=False)
-    parser.add_argument('-c','--machine', help='speficies the paths for genome.fa, chr sizes and bowtie2 index for a given system', default='scg3', choices=['scg3','cho_oro'], required=False)
+    parser.add_argument('-c','--machine', help='speficies the paths for genome.fa, chr sizes and bowtie2 index for a given system', default='scg3', choices=['scg3','cerebellum'], required=False)
     parser.add_argument('-g','--genome', help='specifies the genome to be used for mapping', default='mm9', required=False)
     parser.add_argument('-p','--paired', help='flag specifies paired end, without flag assumes single end reads', action='store_true', required=False)
     parser.add_argument('-l','--readlen', help='specify the length of reads, default 50 bp', default=50,  required=False)
