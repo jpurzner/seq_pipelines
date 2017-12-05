@@ -7,6 +7,7 @@ import bradner_pipeline
 import glob
 import itertools 
 import sys
+import RangedDict
 
 # pipeline for processing ChIP-seq data
 # for a given pool all fastq files should be stored in the same folder 
@@ -63,13 +64,14 @@ def get_fastq_names(meta):
     '''
     print meta
     fastq_files = defaultdict(list)
-    for f in os.listdir(os.curdir):
+    # iterate over each index, need to check files multiple times to make sure that paired 
+    # end sequences are correctly paired
+    for index in meta.keys():
+        for f in os.listdir(os.curdir):
         # only check fastq files
         # 3/10/16 for some reason I had fastq. which prevented the reading 
         # of naked fastq files, changed
-        if 'fastq' in f:
-            # check each index                                            
-            for index in meta.keys():
+            if 'fastq' in f:
                 if index in f:
                     fastq_files[meta[index]].append(f)
             
@@ -96,12 +98,14 @@ def genome_dict(machine = "scg3",  genome = 'mm9'):
 
     if machine == 'scg3' and genome == 'mm9':
         genome_file = {
-           'bowtie2': '/srv/gsfs0/projects/cho/bowtie2_indexes',
-           'chr_size': '/srv/gsfs0/projects/cho/annotation/mm9_chr_size_noran.txt',
-           'genome_chr': '/srv/gsfs0/projects/cho/genomes/mm9/chr',
-           'mappability': '/srv/gsfs0/projects/cho/genomes/mm9/mappability/globalmap_k20tok54'    
+           'bowtie2': '/srv/gsfs0/projects/fuller/Jamie/bowtie2_indexes/mm9/',
+           'chr_size': '/srv/gsfs0/projects/fuller/Jamie/annotation/mm9_chr_size_noran.txt',
+           'genome_chr': '/srv/gsfs0/projects/fuller/Jamie/genomes/mm9/chr',
+           'mappability_2to54': '/srv/gsfs0/projects/fuller/Jamie/genomes/mm9/mappability/globalmap_k2tok54',
+           'mappability_20to54': '/srv/gsfs0/projects/fuller/Jamie/genomes/mm9/mappability/globalmap_k20tok54',
+           'mappability_76': '/srv/gsfs0/projects/fuller/Jamie/genomes/mm9/mappability/k76',
         }
-    elif machine == 'cho_oro' and genome == 'mm9':
+    elif machine == 'cerebellum' and genome == 'mm9':
         genome_file = {
             'bowtie2': '/tank/genomes/Mus_musculus/UCSC/mm9/Sequence/Bowtie2Index',
             'genome_chr': '/tank/genomes/Mus_musculus/UCSC/mm9/Sequence/Chromosomes',
@@ -123,8 +127,9 @@ def bash_header(machine = 'scg3'):
         cmd += '#$ -cwd\n'
         cmd += '#$ -V\n'
         cmd += '#$ -pe shm 2\n'
-    elif machine == 'cho_oro':
-        cmd = ''
+        cmd += 'set -e'
+    elif machine == 'cerebellum':
+        cmd = 'set -e'
 
     return cmd 
 
@@ -152,17 +157,20 @@ def fastq_trim(trimmomaticString, fileNameDict, pairedEnd, sequence_length = 36,
     cmd = "touch %s\n" % (trimlogFile)
     adapters_file = os.path.dirname(trimmomaticString) + '/adapters/' + adapters
     
-    min_length = sequence_length - 8 
+    # we previously subtracted 8 bp fromt the total length but in order to manage the
+    # longer reads from the nextseq we wanted to specify the length of the final trimmed 
+    # read so it will be compatible with the wiggler 
+    min_length = sequence_length 
+    tempFastqFile = fileNameDict['tempFastqFile']
+    tempFastqFileTrim = fileNameDict['tempFastqFileTrim']
     
-    if pairedEnd:
-
-        tempFastqFile1 = fileNameDict['tempFastqFile_1']
-        tempFastqFile2 = fileNameDict['tempFastqFile_2']
-        
+    if pairedEnd: 
+        for i in xrange(0,len(tempFastqFile),2):
+            fastq1 = tempFastqFile[i]
+            fastq2 = tempFastqFile[i+1] 
+            cmd += "java -Xmx6g -Xms3g -Djava.awt.headless=true -jar %s PE -phred33 %s %s %s %s ILLUMINACLIP:%s:2:30:10 LEADING:10 TRAILING:10 SLIDINGWINDOW:4:15 MINLEN:%s >> %s 2>&1\n" % (trimmomaticString, fastq1,fastq2, tempFastqFileTrim[i],tempFastqFileTrim[i+1], adapters_file,  str(min_length), trimlogFile)
+    
     else:
-        tempFastqFile = fileNameDict['tempFastqFile']
-        tempFastqFileTrim = fileNameDict['tempFastqFileTrim']
-        
         if isinstance(tempFastqFile, list): # fastqFile is a list          
             for i, fastq in enumerate(tempFastqFile):
                 cmd += "java -Xmx6g -Xms3g -Djava.awt.headless=true -jar %s SE -phred33 %s %s  ILLUMINACLIP:%s:2:30:10 LEADING:10 TRAILING:10 SLIDINGWINDOW:4:15 MINLEN:%s >> %s 2>&1\n" % (trimmomaticString, fastq, tempFastqFileTrim[i], adapters_file,  str(min_length), trimlogFile)
@@ -203,7 +211,7 @@ def bam2tagAlign(samtoolsString, fileNameDict):
     return cmd
 
 
-def wiggler(matlabString, wigglersrc,  fileNameDict, genome_files):
+def wiggler(matlabString, wigglersrc,  fileNameDict, genome_files, readlen = 36):
     
     '''
     generate matlab commands to produce normalized tracks using 
@@ -216,8 +224,21 @@ def wiggler(matlabString, wigglersrc,  fileNameDict, genome_files):
     wigglerLog = fileNameDict['wigglerLog']
     logFile = fileNameDict['logFile']
 
+    # create a dictionary that returns the correct mappability file and errors if the readlen is wrong
+    map2readlen_dict = RangedDict.RangedDict()
+    map2readlen_dict[(20,54)] = 'mappability_20to54'
+    map2readlen_dict[(55,75)] = None
+    map2readlen_dict[(76,76)] = 'mappability_76'
+    map2readlen_dict[(77,100)] = None
+
+    mappability_file = genome_files[map2readlen_dict[readlen]]
+    if not mappability_file:
+        sys.exit("no mappability file for this readlength, exiting")
+    else: 
+        print mappability_file
+
     path_command = 'addpath(\'%s;\')' % (wigglersrc)
-    mat_command = "align2rawsignal('-i=%s', '-s=%s', '-u=%s', '-o=%s', '-of=bg', '-mm=12', '-l=200', '-v=%s');" % (temptagAlignFile, genome_files['genome_chr'], genome_files['mappability'], wigglerFile, wigglerLog)
+    mat_command = "align2rawsignal('-i=%s', '-s=%s', '-u=%s', '-o=%s', '-of=bg', '-mm=12', '-l=200', '-v=%s');" % (temptagAlignFile, genome_files['genome_chr'], mappability_file, wigglerFile, wigglerLog)
     
     cmd = 'touch wiggler.m\n'
     cmd += 'echo \"%s\" >> wiggler.m\n' % (path_command)
@@ -273,6 +294,15 @@ def map_qual(samtoolsString, mapqString, fileNameDict):
     cmd += "rm %s\n" % (mapqFile)
     return cmd
 
+def changeDir(dirname):
+
+    '''
+    changes into the temp directory
+    '''
+    cmd = "cd %s" % (dirname)
+    return cmd
+
+
 def bedgraph_check(fileNameDict): 
     '''
     count the number of chromosomes in each bedgraph file
@@ -295,6 +325,7 @@ def gz_bedgraph(fileNameDict):
     cmd = "gzip %s\n" % (wigglerFile)
     return cmd 
 
+# Aug2017 only perform up to mapping and first bam in the temp folder 
 
 def bash_maker(fileNameDict, outputFolder, uniqueID, pairedEnd, mismatchN, genome_files, exe_dict, genome = 'mm9', trim = True, machine = 'scg3', readlen = 36):
     
@@ -358,10 +389,19 @@ def bash_maker(fileNameDict, outputFolder, uniqueID, pairedEnd, mismatchN, genom
     #check mapq
     cmd = map_qual(exe_dict['samtools'], exe_dict['MAPQ_hist'], fileNameDict)
     bashFile.write(cmd+'\n')
-    
+
     #change into the temp directory
-    cmd = bradner_pipeline.changeTempDir(fileNameDict)
+    #cmd = bradner_pipeline.changeTempDir(fileNameDict)
+    #bashFile.write(cmd+'\n')
+    
+    #mv bams                                        
+    cmd = bradner_pipeline.mvBamCmd(fileNameDict)
     bashFile.write(cmd+'\n')
+
+    #change into the temp directory
+    cmd = changeDir(fileNameDict['finalFolder'])
+    bashFile.write(cmd+'\n')
+
 
     #sort the bam
     cmd = bradner_pipeline.sortBamCmd(exe_dict['samtools'],fileNameDict)
@@ -383,7 +423,7 @@ def bash_maker(fileNameDict, outputFolder, uniqueID, pairedEnd, mismatchN, genom
     cmd = bam2tagAlign(exe_dict['samtools'], fileNameDict)
     bashFile.write(cmd+'\n')
 
-    cmd = wiggler(exe_dict['matlab'], exe_dict['wiggler_src'], fileNameDict, genome_files)
+    cmd = wiggler(exe_dict['matlab'], exe_dict['wiggler_src'], fileNameDict, genome_files, readlen = readlen)
     bashFile.write(cmd+'\n')
 
     #generate tdf file
@@ -408,10 +448,6 @@ def bash_maker(fileNameDict, outputFolder, uniqueID, pairedEnd, mismatchN, genom
     
     #remove unsorted bam file
     cmd = rmbamFile(fileNameDict)
-    bashFile.write(cmd+'\n')
-
-    #mv bams                                        
-    cmd = bradner_pipeline.mvBamCmd(fileNameDict)
     bashFile.write(cmd+'\n')
 
     #cleanup        
@@ -450,7 +486,7 @@ def main():
     parser.add_argument('-m','--meta', help='table containing filename<tab>index', required=True)
     parser.add_argument('-o','--output', help='directory to create new files in, default is current working directory', default='',  required=False)
     parser.add_argument('-d','--directory', help='directory storing fastq files, default current working directory', default='',  required=False)
-    parser.add_argument('-c','--machine', help='speficies the paths for genome.fa, chr sizes and bowtie2 index for a given system', default='scg3', choices=['scg3','cho_oro'], required=False)
+    parser.add_argument('-c','--machine', help='speficies the paths for genome.fa, chr sizes and bowtie2 index for a given system', default='scg3', choices=['scg3','cerebellum'], required=False)
     parser.add_argument('-g','--genome', help='specifies the genome to be used for mapping', default='mm9', required=False)
     parser.add_argument('-p','--paired', help='flag specifies paired end, without flag assumes single end reads', action='store_true', required=False)
     parser.add_argument('-l','--readlen', help='specify the length of reads, default 36 bp', default=36,  required=False)
@@ -477,7 +513,7 @@ def main():
     trim = not args.no_trim
     
 
-    readlen = args.readlen
+    readlen = int(args.readlen)
     mismatchN = args.bowtie_mismatch
     norun = args.norun 
 
@@ -556,13 +592,15 @@ def main():
         print 'error: MAPQ_hist.R not autodetected in path'
         sys.exit('add to path, install, or omit MAPQ plotting')
 
-    exe_dict['wiggler_src'] = '/srv/gsfs0/projects/cho/programs/align2rawsignal/src'
+    # need to change when using different server    
+    exe_dict['wiggler_src'] = '/srv/gsfs0/projects/fuller/programs/align2rawsignal/src'
     #print exe_dict
 
     #======================================================================#
     #=============== GENERATE BASH SCRIPTS & EXECUTE=======================#
 
     print fastq_dict
+    # loop through the the indexes/barcodes and create a bashfile for each one
     for name in fastq_dict.keys():
         fastqFile = fastq_dict[name] 
         uniqueID = name

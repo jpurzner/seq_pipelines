@@ -34,9 +34,9 @@ do
     # added to handle empty or incomplete files
     cols=$(head -n 1 $f | awk '{print NF}')
     rows=$(wc -l $f | awk '{print $1}')
-    #(>&2 echo $f)
-    #(>&2 echo $cols)
-    #(>&2 echo $rows)
+    (>&2 echo $f)
+    (>&2 echo $cols)
+    (>&2 echo $rows)
     if [[ $rows -gt 0 ]] && [[ $cols -eq $all_cols ]]; then
 	    if [[ $n -eq 1 ]]; then
 		case "$cols" in
@@ -67,7 +67,7 @@ do
 		colname="${colname:2:${#colname}-1}"
 		printf "%s\n" "${colname}" >> tmp.txt
 		(>&2 echo "$colname")
-		cat $f | awk '{OFS="\t"; print $7}' >> tmp.txt
+		cat $f | awk -v var=$all_cols 'BEGIN {OFS="\t"; print $var}' >> tmp.txt
 		paste all_counts.txt tmp.txt >> tmp2.txt
 		mv -f tmp2.txt all_counts.txt
 		rm tmp.txt

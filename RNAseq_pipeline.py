@@ -19,7 +19,7 @@ import sys
 # 3. Run tophat, using existing gene models 
 # 4. Run RSEM 
 # 5. Quantify off of the Gencode genes 
-
+# 
 
 #=========================================================================
 #=============================GLOBAL PARAMETERS===========================       
@@ -116,21 +116,29 @@ def count_mRNA(htseq_string, fileNameDict, annotation ):
     cmd = '%s -f bam -s no -a 10 -t exon -i gene_name %s %s > %s' % (htseq_string, tophatBam, annotation, gencodeOut) 
     return cmd
 
-def load_meta(meta_file):
+def load_meta(meta_file, pairedEnd):
     '''
     loads a meta data table into a dictionary 
     the first column should be the desired filename 
     and the second the index for the fastq files 
+    
+    for paired end reads the files are read as a 
+    comma delimited text and stored as a list
     '''
 
-    meta = {}    
+    meta = {} 
     with open(meta_file) as mf:
         for line in mf:
             meta_line = line.split()
+            #if pairedEnd:
+            #    meta[meta_line[1]] = meta_line[0].split(fastqDelimiter)
+            #    if len(meta[meta_line[1]]) == 1:
+            #        sys.exit('paired end selected but index or identifier is not comma delimited')
+            #else:
             meta[meta_line[1]] = meta_line[0]
     return meta
     
-def get_fastq_names(meta):
+def get_fastq_names(meta, pairedEnd):
     '''
     input: meta dictionary from load_meta
          key = index
@@ -150,6 +158,9 @@ def get_fastq_names(meta):
     the fastq files associated with the index will be treated 
     as biological replicates and merged 
     
+    in the case of paired end reads the files will be stored 
+    as a list of lists 
+
     '''
 
     fastq_files = defaultdict(list)
@@ -519,13 +530,15 @@ def main():
     #============== PROCESS INPUT ARGUMENTS ===============================#
 
     # process meta data and validate existence of index 
-    meta = load_meta(args.meta)
-    fastq_dict = get_fastq_names(meta)
     machine = args.machine
     genome = args.genome
     genome_files = genome_dict(machine = machine, genome = genome) 
     pairedEnd = args.paired
     
+    # use meta table to specify combinations of filenames 
+    meta = load_meta(args.meta, pairedEnd)
+    fastq_dict = get_fastq_names(meta, pairedEnd)
+
     trim = not args.no_trim
     
     readlen = int(args.readlen)
