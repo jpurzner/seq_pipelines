@@ -31,18 +31,37 @@ all_cols="$(echo  "${DATA[@]}" | xargs head -1 | grep -P '\t' | awk '{print NF}'
 (>&2 echo "autodetected $all_cols columns")
 
 
-# this still needs work use loop that stops when len 1 
+# identify common string, sometimes it fails on the first time so just loop until length is 1 
 common_txt="$(echo  "${DATA[@]}" |  sed -e 'N;s/^\(.*\).*\n\1.*$/\1/')"
 common_txt="$(echo  "${common_txt[@]}" |  sed -e 'N;s/^\(.*\).*\n\1.*$/\1/')"
-common_txt="$(echo  "${common_txt[@]}" |  sed -e 'N;s/^\(.*\).*\n\1.*$/\1/')"
-(>&2 echo  ${#common_txt[@]})
+com_count=${#common_txt[@]}
+
+
+while [[ $com_count -gt 1 ]];
+do
+    common_txt="$(echo  "${common_txt[@]}" |  sed -e 'N;s/^\(.*\).*\n\1.*$/\1/')"
+    com_count=${#common_txt[@]}
+    (>&2 echo "current common length $com_count")
+done
+
+
+comm_txt=$common_txt[0]
 
 
 #common_txt="$(echo  "${DATA[@]}" | awk '{print $0}'  | grep -zoP '^(.*)(?=.*?\n\1)')"
-(>&2 echo "common text: ${common_txt}")
-#(>&2 echo "${common_txt}")
+
+(>&2 echo "current common length $com_count")
+(>&2 echo  "${common_txt[@]}")
+
+(>&2 echo  "${DATA[@]}")
+(>&2 echo  "done")
+(>&2 echo  $comm_txt)
 
 
+# create 2 temporary files 
+tfile1=$(mktemp tmp1.XXXXXXXXX)
+tfile2=$(mktemp tmp2.XXXXXXXXX)
+tcount=$(mktemp tcount.XXXXXXXXX)
 
 
 n=1
@@ -77,23 +96,23 @@ do
 		#colname="${colname:2:${#colname}-1}"
 		colname="${colname//$common_txt/}"
 		colname="${colname%.*}"
-		printf "%s\n" "${colname}" >> all_counts.txt
+		printf "%s\n" "${colname}" >> $tcount
 		(>&2 echo "$colname")
 		(>&2 echo "$common_txt")
-		cat $f >> all_counts.txt
+		cat $f >> $tcount
 	    else
-		touch tmp.txt
-		touch tmp2.txt
+		touch $tfile1
+		touch $tfile2
 		colname=${f}
 		#colname="${colname:2:${#colname}-1}"
 		colname="${colname//$common_txt/}"
 		colname="${colname%.*}"
-		printf "%s\n" "${colname}" >> tmp.txt
+		printf "%s\n" "${colname}" >> $tfile1
 		(>&2 echo "$colname")
-		cat $f | awk -v counts=$all_cols '{OFS="\t"; print $counts}' >> tmp.txt
-		paste all_counts.txt tmp.txt >> tmp2.txt
-		mv -f tmp2.txt all_counts.txt
-		rm tmp.txt
+		cat $f | awk -v counts=$all_cols '{OFS="\t"; print $counts}' >> $tfile1
+		paste $tcount $tfile1 >> $tfile2
+		mv -f $tfile2 $tcount
+		rm $tfile1
 		(>&2 echo $n)
 	    fi
 	    n=$(( $n + 1 ))
@@ -101,7 +120,7 @@ do
 
 done <<< "$DATA"
 #cat all_counts.txt | awk 'NR == 1' | sed  's|'$common_txt'||' 
-cat all_counts.txt
+mv $tcount "${common_txt}gathered_counts.bed"
 
-rm all_counts.txt
+
 

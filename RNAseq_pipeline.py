@@ -434,8 +434,8 @@ def bash_maker(fileNameDict, outputFolder, uniqueID, pairedEnd, mismatchN, genom
     bashFile.write(cmd+'\n')
 
     #call RSEM 
-    cmd = RSEM(exe_dict['rsem-calculate-expression'], fileNameDict, genome_files['RSEM'])
-    bashFile.write(cmd+'\n')
+    #cmd = RSEM(exe_dict['rsem-calculate-expression'], fileNameDict, genome_files['RSEM'])
+    #bashFile.write(cmd+'\n')
     
     #remove temp fastq                                 
     cmd = bradner_pipeline.removeTempFastqCmd(fileNameDict,pairedEnd)

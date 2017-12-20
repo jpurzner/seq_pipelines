@@ -1,4 +1,4 @@
-#!/srv/gs1/software/python/python-2.7/bin/python
+#!/usr/bin/python
 import subprocess
 import os
 import re
@@ -94,14 +94,14 @@ def genome_dict(machine = "scg3",  genome = 'mm9'):
     this function holds the paths for genome and indexes for each of our systems
     '''
 
-    if machine == 'scg3' and genome == 'mm9':
+    if machine == 'sge' and genome == 'mm9':
         genome_file = {
            'bowtie2': '/srv/gsfs0/projects/cho/bowtie2_indexes',
            'chr_size': '/srv/gsfs0/projects/cho/annotation/mm9_chr_size_noran.txt',
            'genome_chr': '/srv/gsfs0/projects/cho/genomes/mm9/chr',
            'mappability': '/srv/gsfs0/projects/cho/genomes/mm9/mappability/globalmap_k20tok54'    
         }
-    elif machine == 'cho_oro' and genome == 'mm9':
+    elif machine == 'no_sge' and genome == 'mm9':
         genome_file = {
             'bowtie2': '/tank/genomes/Mus_musculus/UCSC/mm9/Sequence/Bowtie2Index',
             'genome_chr': '/tank/genomes/Mus_musculus/UCSC/mm9/Sequence/Chromosomes',
@@ -115,15 +115,15 @@ def genome_dict(machine = "scg3",  genome = 'mm9'):
     return genome_file
 
 
-def bash_header(machine = 'scg3'):
-    if machine == 'scg3':
+def bash_header(machine = 'sge'):
+    if machine == 'sge':
         cmd = '#$ -l h_vmem=10G\n'
         cmd += '#$ -l h_rt=24:00:00\n'
         cmd += '#$ -w e\n'
         cmd += '#$ -cwd\n'
         cmd += '#$ -V\n'
         cmd += '#$ -pe shm 2\n'
-    elif machine == 'cho_oro':
+    elif machine == 'no_sge':
         cmd = ''
 
     return cmd 
@@ -427,10 +427,10 @@ def bash_maker(fileNameDict, outputFolder, uniqueID, pairedEnd, mismatchN, genom
     return bashFileName 
 
 def run_script(bashFileName, machine):
-    if machine == 'scg3':
+    if machine == 'sge':
         cmd = "qsub %s" % (bashFileName)
         subprocess.call(cmd, shell = True)
-    elif machine == 'cho_oro':
+    elif machine == 'no_sge':
         cmd = "nohup bash %s &" % (bashFileName) 
         subprocess.call(cmd, shell = True)
     else:
@@ -450,7 +450,7 @@ def main():
     parser.add_argument('-m','--meta', help='table containing filename<tab>index', required=True)
     parser.add_argument('-o','--output', help='directory to create new files in, default is current working directory', default='',  required=False)
     parser.add_argument('-d','--directory', help='directory storing fastq files, default current working directory', default='',  required=False)
-    parser.add_argument('-c','--machine', help='speficies the paths for genome.fa, chr sizes and bowtie2 index for a given system', default='scg3', choices=['scg3','cho_oro'], required=False)
+    parser.add_argument('-c','--machine', help='speficies the paths for genome.fa, chr sizes and bowtie2 index for a given system', default='sge', choices=['sge','no_sge'], required=False)
     parser.add_argument('-g','--genome', help='specifies the genome to be used for mapping', default='mm9', required=False)
     parser.add_argument('-p','--paired', help='flag specifies paired end, without flag assumes single end reads', action='store_true', required=False)
     parser.add_argument('-l','--readlen', help='specify the length of reads, default 36 bp', default=36,  required=False)
