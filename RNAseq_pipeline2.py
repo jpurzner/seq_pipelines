@@ -199,6 +199,13 @@ def genome_dict(machine = "scg3",  genome = 'mm9'):
             'RSEM': '/tank/genomes/mm9/RSEM',
             'gencode': '/tank/annotation'
         }
+    elif machine == 'scg3' and genome == 'hg19':
+        genome_file = {
+            'bowtie2': '/srv/gsfs0/projects/fuller/Jamie/bowtie2_indexes/hg19',
+            'genome_chr': '/srv/gsfs0/projects/fuller/Jamie/genomes/hg19',
+            'chr_size': '/srv/gsfs0/projects/fuller/Jamie/annotation/hg19.chrom.sizes',
+            'gencode': '/srv/gsfs0/projects/fuller/Jamie/annotation/gencode.v19.annotation.gtf'
+        }
     else: 
         print "error: machine not specified or no information given"
         print "please add paths and filenames to genome_dict"

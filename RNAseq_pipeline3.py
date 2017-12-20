@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/srv/gs1/software/python/python-2.7/bin/python
 import subprocess
 import os
 import re
@@ -8,22 +8,113 @@ import glob
 import itertools 
 import sys
 
-# pipeline for processing ChIP-seq data
-# for a given pool all fastq files should be stored in the same folder 
+# pipeline for processing RNA-seq data
+# modified from chip_pipeline which was modified from the bradner lab 
+# pipeline, which was written by Charles Lin
 
-# map the fastq files
+# general structure 
+# 1. Metatable maanagement, unchanged from chip_pipeline
+# 2. Decompressiing and early fastq procssing (read trimming, FASTQC), 
+#    unchanged from chip_pipeline 
+# 3. Run tophat, using existing gene models 
+# 4. Run RSEM 
+# 5. Quantify off of the Gencode genes 
 
 
 #=========================================================================
 #=============================GLOBAL PARAMETERS===========================       
 #=========================================================================  
-
 fastqDelimiter = ','
 
 
 #==========================================================================
 #=======================FUNCTIONS==========================================
 
+#def check_quality():
+#    '''
+#    '''
+
+#    read_distribution.py 
+
+
+
+def indexBam(samtoolsString,fileNameDict):
+    '''                                                                                           
+    uses samtools to index the bam                                                                
+    '''
+    tophatBam = fileNameDict['tophatBam']
+    cmd = "%s index '%s'" % (samtoolsString, tophatBam)
+    return cmd
+
+
+def mvAllCmd(fileNameDict):
+
+    '''                                                                                           
+    moves and renames all files in the directory
+    '''
+    finalFolder = fileNameDict['finalFolder']
+    tempFolder = fileNameDict['tempFolder']
+    cmd = "mv %s* %s" % (tempFolder, finalFolder)
+
+    return cmd
+
+def tophat2(tophatString, fileNameDict,bowtieIndex, pairedEnd = False, trim = True):
+    '''
+    for details on tophat2 see: 
+    http://ccb.jhu.edu/software/tophat/manual.shtml
+    '''
+
+    # paired end portion needs to be modified in order to handle lists...
+    if pairedEnd:
+        tempFastqFile1 = fileNameDict['tempFastqFile_1']
+        tempFastqFile2 = fileNameDict['tempFastqFile_2']
+        tempSamFile = fileNameDict['tempSamFile']
+        cmd = "%s -p 4 -X2000 -N %s -x %s -1 %s -2 %s -S %s" % (bowtieString,mismatchN,bowtieIndex,tempFastq, File1,tempFastqFile2,tempSamFile)
+    else:
+        if trim:
+            bowtieFastq = fileNameDict['tempFastqFileTrim']
+        else:
+            bowtieFastq = fileNameDict['tempFastqFile']
+        logFile = fileNameDict['logFile']
+        tempFolder = fileNameDict['tempFolder'] + 'tophat'
+        if isinstance(bowtieFastq, list): # fastqFile is a list                                              
+            comma_fastq = ','.join(bowtieFastq)
+            cmd = "%s -o %s --b2-sensitive -p 4 %s %s >> %s 2>&1" % (tophatString,tempFolder,bowtieIndex,comma_fastq,logFile)
+        else:
+            cmd = "%s -o %s --b2-sensitive -p 4 %s %s >> %s 2>&1" % (tophatString,tempFolder,bowtieIndex,bowtieFastq,logFile)
+        return cmd
+
+def RSEM(RSEMString, fileNameDict,RSEMIndex, pairedEnd = False, trim = True):
+
+    # paired end portion needs to be modified in order to handle lists...
+    if pairedEnd:
+        tempFastqFile1 = fileNameDict['tempFastqFile_1']
+        tempFastqFile2 = fileNameDict['tempFastqFile_2']
+        tempSamFile = fileNameDict['tempSamFile']
+        cmd = "%s -p 4 -X2000 -N %s -x %s -1 %s -2 %s -S %s" % (bowtieString,mismatchN,bowtieIndex,tempFastq, File1,tempFastqFile2,tempSamFile)
+    else:
+        if trim:
+            bowtieFastq = fileNameDict['tempFastqFileTrim']
+        else:
+            bowtieFastq = fileNameDict['tempFastqFile']
+        logFile = fileNameDict['logFile']
+        tempFolder = fileNameDict['tempFolder'] + 'RSEM' 
+        # if you have keep the last / for the new directory
+        
+        if isinstance(bowtieFastq, list): # fastqFile is a list                                              
+            comma_fastq = ','.join(bowtieFastq)
+            cmd = "%s -p 4 --output-genome-bam --calc-ci --bowtie2 %s %s %s" % (RSEMString, comma_fastq, RSEMIndex, tempFolder)            
+        else:
+            cmd = "%s -p 4 --output-genome-bam --calc-ci --bowtie2 %s %s %s" % (RSEMString, bowtieFast, RSEMIndex, tempFolder)
+    return cmd
+
+def count_mRNA(htseq_string, fileNameDict, annotation ):
+
+    tempFolder = fileNameDict['tempFolder']
+    tophatBam = fileNameDict['tophatBam']
+    gencodeOut = tempFolder + 'gencode_vM1_gene_name_counts.txt' 
+    cmd = '%s -f bam -s no -a 10 -t exon -i gene_name %s %s > %s' % (htseq_string, tophatBam, annotation, gencodeOut) 
+    return cmd
 
 def load_meta(meta_file):
     '''
@@ -37,7 +128,6 @@ def load_meta(meta_file):
         for line in mf:
             meta_line = line.split()
             meta[meta_line[1]] = meta_line[0]
-            
     return meta
     
 def get_fastq_names(meta):
@@ -61,12 +151,10 @@ def get_fastq_names(meta):
     as biological replicates and merged 
     
     '''
-    print meta
+
     fastq_files = defaultdict(list)
     for f in os.listdir(os.curdir):
-        # only check fastq files
-        # 3/10/16 for some reason I had fastq. which prevented the reading 
-        # of naked fastq files, changed
+        # only check fastq files                                          
         if 'fastq' in f:
             # check each index                                            
             for index in meta.keys():
@@ -85,7 +173,6 @@ def get_fastq_names(meta):
         if fastq_num and (curr_num not in fastq_num):
             print 'warning: number of fastq files per index not the same as others in directory'
         fastq_num.append(curr_num)
-    
     return fastq_files
 
 
@@ -94,19 +181,30 @@ def genome_dict(machine = "scg3",  genome = 'mm9'):
     this function holds the paths for genome and indexes for each of our systems
     '''
 
-    if machine == 'sge' and genome == 'mm9':
+    if machine == 'scg3' and genome == 'mm9':
         genome_file = {
-           'bowtie2': '/srv/gsfs0/projects/cho/bowtie2_indexes',
-           'chr_size': '/srv/gsfs0/projects/cho/annotation/mm9_chr_size_noran.txt',
-           'genome_chr': '/srv/gsfs0/projects/cho/genomes/mm9/chr',
-           'mappability': '/srv/gsfs0/projects/cho/genomes/mm9/mappability/globalmap_k20tok54'    
+           'bowtie2': '/srv/gsfs0/projects/fuller/Jamie/bowtie2_indexes/Mus_musculus/UCSC/mm9/Sequence/Bowtie2Index/genome',
+           'chr_size': '/srv/gsfs0/projects/fuller/Jamie/annotation/mm9_chr_size_noran.txt',
+           'genome_chr': '/srv/gsfs0/projects/fuller/Jamie/genomes/mm9/chr',
+           'mappability': '/srv/gsfs0/projects/fuller/Jamie/genomes/mm9/mappability/globalmap_k20tok54',
+           'RSEM': '/srv/gsfs0/projects/fuller/Jamie/genomes/mm9/RSEM/RSEM',
+           'gencode': '/srv/gsfs0/projects/fuller/Jamie/annotation/gencode.vM1.annotation.gtf'
         }
-    elif machine == 'no_sge' and genome == 'mm9':
+    elif machine == 'cerebellum' and genome == 'mm9':
         genome_file = {
             'bowtie2': '/tank/genomes/Mus_musculus/UCSC/mm9/Sequence/Bowtie2Index',
             'genome_chr': '/tank/genomes/Mus_musculus/UCSC/mm9/Sequence/Chromosomes',
             'genome': '/tank/genomes/Mus_musculus/UCSC/mm9/Sequence/WholeGenomeFasta',
-            'mappability': '/tank/genomes/align2raw/umap/globalmap_k20tok54'
+            'mappability': '/tank/genomes/align2raw/umap/globalmap_k20tok54',
+            'RSEM': '/tank/genomes/Mus_musculus/RSEM/RSEM',
+            'gencode': '/srv/gsfs0/projects/cho/annotation'
+        }
+    elif machine == 'scg3' and genome == 'hg19':
+        genome_file = {
+            'bowtie2': '/srv/gsfs0/projects/fuller/Jamie/bowtie2_indexes/hg19/hg19',
+            'genome_chr': '/srv/gsfs0/projects/fuller/Jamie/genomes/hg19',
+            'chr_size': '/srv/gsfs0/projects/fuller/Jamie/annotation/hg19.chrom.sizes',
+            'gencode': '/srv/gsfs0/projects/fuller/Jamie/annotation/gencode.v19.annotation.gtf'
         }
     else: 
         print "error: machine not specified or no information given"
@@ -114,16 +212,15 @@ def genome_dict(machine = "scg3",  genome = 'mm9'):
     
     return genome_file
 
-
-def bash_header(machine = 'sge'):
-    if machine == 'sge':
+def bash_header(machine = 'scg3'):
+    if machine == 'scg3':
         cmd = '#$ -l h_vmem=10G\n'
-        cmd += '#$ -l h_rt=24:00:00\n'
+        cmd += '#$ -l h_rt=60:00:00\n'
         cmd += '#$ -w e\n'
         cmd += '#$ -cwd\n'
         cmd += '#$ -V\n'
-        cmd += '#$ -pe shm 2\n'
-    elif machine == 'no_sge':
+        cmd += '#$ -pe shm 4\n'
+    elif machine == 'cho_oro':
         cmd = ''
 
     return cmd 
@@ -144,7 +241,7 @@ def fastq_read_length():
 
 
 
-def fastq_trim(trimmomaticString, fileNameDict, pairedEnd, sequence_length = 36, adapters = 'illumina_list.fa' ):
+def fastq_trim(trimmomaticString, fileNameDict, pairedEnd, sequence_length = 50, adapters = 'illumina_list.fa' ):
     '''
     creates the trimmomatic command                                                    
     '''
@@ -182,7 +279,7 @@ def rmdupBamCmd(samtoolsString,fileNameDict):
     tempSortedBamFile = fileNameDict['tempSortedBamFile']    
     tempRmdupBamFile = fileNameDict['tempRmdupBamFile']
     cmd = "echo \"Remove duplicate log\" >> %s\n " % (logFile)   
-    cmd += "%s rmdup -s  '%s' '%s' >> %s 2>&1" % (samtoolsString,tempSortedBamFile,tempRmdupBamFile, logFile)
+    cmd += "%s rmdup -s  '%s' '%s' >> %s 2>&1" % (samtoolsString,tempSortedBamFile,tempRmdupBamFile,logFile)
     return cmd
 
 
@@ -262,7 +359,7 @@ def map_qual(samtoolsString, mapqString, fileNameDict):
     using MAPQ_hist.R 
     '''
 
-    tempBamFile = fileNameDict['tempBamFile']
+    tempBamFile = fileNameDict['tophatBam']
     logFile = fileNameDict['logFile']
     mapqFile = fileNameDict['mapqFile']
 
@@ -296,7 +393,7 @@ def gz_bedgraph(fileNameDict):
     return cmd 
 
 
-def bash_maker(fileNameDict, outputFolder, uniqueID, pairedEnd, mismatchN, genome_files, exe_dict, genome = 'mm9', trim = True, machine = 'scg3', readlen = 36):
+def bash_maker(fileNameDict, outputFolder, uniqueID, pairedEnd, mismatchN, genome_files, exe_dict, genome = 'mm9', trim = True, machine = 'scg3', readlen = 50):
     
     #open the bashfile to write to                          
     bashFileName = "%s%s_bwt.sh" % (outputFolder,uniqueID)
@@ -312,7 +409,7 @@ def bash_maker(fileNameDict, outputFolder, uniqueID, pairedEnd, mismatchN, genom
     #make temp directory      
     cmd = 'mkdir %s' % (fileNameDict['tempFolder'])
     bashFile.write(cmd+'\n')
-    
+
     #make final directory
     cmd = 'mkdir %s' % (fileNameDict['finalFolder'])
     bashFile.write(cmd+'\n')
@@ -331,17 +428,22 @@ def bash_maker(fileNameDict, outputFolder, uniqueID, pairedEnd, mismatchN, genom
     
     # trim reads
     if trim:
-        cmd = fastq_trim(exe_dict['trimmomatic'], fileNameDict, pairedEnd)
+        cmd = fastq_trim(exe_dict['trimmomatic'], fileNameDict, pairedEnd, sequence_length = readlen)
         bashFile.write(cmd+'\n')
 
         #rerun fastqc 
         cmd = bradner_pipeline.runFastQC(exe_dict['fastqc'],fileNameDict,pairedEnd,trim)
         bashFile.write(cmd+'\n')
+    print genome
 
-    #call bowtie    
-    cmd = bradner_pipeline.bowtieCmd(exe_dict['bowtie2'],mismatchN,genome_files['bowtie2'],fileNameDict, genome = genome, pairedEnd = pairedEnd, trim = trim)
+    #call tophat2                                                                                             
+    cmd = tophat2(exe_dict['tophat2'],fileNameDict,genome_files['bowtie2'],pairedEnd = pairedEnd, trim = trim)
     bashFile.write(cmd+'\n')
 
+    #call RSEM 
+    #cmd = RSEM(exe_dict['rsem-calculate-expression'], fileNameDict, genome_files['RSEM'])
+    #bashFile.write(cmd+'\n')
+    
     #remove temp fastq                                 
     cmd = bradner_pipeline.removeTempFastqCmd(fileNameDict,pairedEnd)
     bashFile.write(cmd+'\n')
@@ -351,10 +453,6 @@ def bash_maker(fileNameDict, outputFolder, uniqueID, pairedEnd, mismatchN, genom
         cmd = bradner_pipeline.removeTempFastqCmd(fileNameDict,pairedEnd, trim = trim)
         bashFile.write(cmd+'\n')
 
-    #generate a bam                                   
-    cmd = bradner_pipeline.generateTempBamCmd(exe_dict['samtools'],fileNameDict)
-    bashFile.write(cmd+'\n')
-
     #check mapq
     cmd = map_qual(exe_dict['samtools'], exe_dict['MAPQ_hist'], fileNameDict)
     bashFile.write(cmd+'\n')
@@ -363,62 +461,23 @@ def bash_maker(fileNameDict, outputFolder, uniqueID, pairedEnd, mismatchN, genom
     cmd = bradner_pipeline.changeTempDir(fileNameDict)
     bashFile.write(cmd+'\n')
 
-    #sort the bam
-    cmd = bradner_pipeline.sortBamCmd(exe_dict['samtools'],fileNameDict)
-    bashFile.write(cmd+'\n')
-
     #index    
-    cmd = bradner_pipeline.indexBamCmd(exe_dict['samtools'],fileNameDict)
+    cmd = indexBam(exe_dict['samtools'],fileNameDict)
     bashFile.write(cmd+'\n')
 
-    #remove duplicates
-    cmd = rmdupBamCmd(exe_dict['samtools'], fileNameDict) 
-    bashFile.write(cmd+'\n')
-
-    #index the removed duplicates bam 
-    cmd = bradner_pipeline.indexBamCmd(exe_dict['samtools'],fileNameDict, rmdup = True)
-    bashFile.write(cmd+'\n')
-
-    #generate wiggler file
-    cmd = bam2tagAlign(exe_dict['samtools'], fileNameDict)
-    bashFile.write(cmd+'\n')
-
-    cmd = wiggler(exe_dict['matlab'], exe_dict['wiggler_src'], fileNameDict, genome_files)
-    bashFile.write(cmd+'\n')
-
-    #generate tdf file
-    cmd = bedgraph2tdf(exe_dict['igvtools'], fileNameDict, genome = genome)
-    bashFile.write(cmd+'\n')
-    
-    #check wiggler by counting the chromosomes in the bedgraph file
-    cmd = bedgraph_check(fileNameDict)
-    bashFile.write(cmd+'\n')
-
-    #compress the bedgraph file  
-    cmd = gz_bedgraph(fileNameDict)
-    bashFile.write(cmd+'\n')
-
-    #remove sam       
-    cmd = bradner_pipeline.rmSamCmd(fileNameDict)
-    bashFile.write(cmd+'\n')
-    
-    #remove tagAlign files 
-    cmd = rmtagAlingCmd(fileNameDict)
-    bashFile.write(cmd+'\n')
-    
-    #remove unsorted bam file
-    cmd = rmbamFile(fileNameDict)
+    # count mRNA using gencode
+    cmd = count_mRNA(exe_dict['htseq-count'],fileNameDict,genome_files['gencode'])
     bashFile.write(cmd+'\n')
 
     #mv bams                                        
-    cmd = bradner_pipeline.mvBamCmd(fileNameDict)
+    cmd = mvAllCmd(fileNameDict)
     bashFile.write(cmd+'\n')
 
     #cleanup        
     cmd = bradner_pipeline.rmTempFiles(fileNameDict)
     bashFile.write(cmd+'\n')
 
-    # create the not_complete file                                               
+    #remove the not_complete file                                               
     cmd= 'rm %s' % (fileNameDict['not_complete'])
     bashFile.write(cmd+'\n')
 
@@ -427,10 +486,10 @@ def bash_maker(fileNameDict, outputFolder, uniqueID, pairedEnd, mismatchN, genom
     return bashFileName 
 
 def run_script(bashFileName, machine):
-    if machine == 'sge':
+    if machine == 'scg3':
         cmd = "qsub %s" % (bashFileName)
         subprocess.call(cmd, shell = True)
-    elif machine == 'no_sge':
+    elif machine == 'cho_oro':
         cmd = "nohup bash %s &" % (bashFileName) 
         subprocess.call(cmd, shell = True)
     else:
@@ -447,13 +506,13 @@ def main():
     
     # obtain command line arguments                                            
     parser = argparse.ArgumentParser(description='batch pipeline for mapping ChIP-seq data')
-    parser.add_argument('-m','--meta', help='table containing filename<tab>index', required=True)
+    parser.add_argument('-m','--meta', help='table containing new_filename<tab>index, the index can be any text used to uniquely identify the fastq files', required=True)
     parser.add_argument('-o','--output', help='directory to create new files in, default is current working directory', default='',  required=False)
     parser.add_argument('-d','--directory', help='directory storing fastq files, default current working directory', default='',  required=False)
-    parser.add_argument('-c','--machine', help='speficies the paths for genome.fa, chr sizes and bowtie2 index for a given system', default='sge', choices=['sge','no_sge'], required=False)
+    parser.add_argument('-c','--machine', help='speficies the paths for genome.fa, chr sizes and bowtie2 index for a given system', default='scg3', choices=['scg3','cerebellum'], required=False)
     parser.add_argument('-g','--genome', help='specifies the genome to be used for mapping', default='mm9', required=False)
     parser.add_argument('-p','--paired', help='flag specifies paired end, without flag assumes single end reads', action='store_true', required=False)
-    parser.add_argument('-l','--readlen', help='specify the length of reads, default 36 bp', default=36,  required=False)
+    parser.add_argument('-l','--readlen', help='specify the length of reads, default 50 bp', default=50,  required=False)
     parser.add_argument('--no_trim', help='flag to prevent trimming reads using Trimmomatic prior to mapping, default trimming', action='store_true', required=False)
     parser.add_argument('-t','--temp', help='specifies the temporary folder path, otherwise will use current working directory', default='', required=False)
     parser.add_argument('--bowtie_mismatch', help='number of mismatches for bowtie2', default=0, required=False)
@@ -476,8 +535,7 @@ def main():
     
     trim = not args.no_trim
     
-
-    readlen = args.readlen
+    readlen = int(args.readlen)
     mismatchN = args.bowtie_mismatch
     norun = args.norun 
 
@@ -506,13 +564,12 @@ def main():
         outputFolder = args.ouput
         if not outputFolder.endswith('/'):
             outputFolder = outputFolder + '/'
-    
-    print "test test"
+            
     #=====================================================================#     
     #=================== GET PATH FOR EXECUTABLES ========================#
 
     # find executables
-    exe_list = ['bowtie2', 'samtools', 'fastqc', 'matlab']
+    exe_list = ['bowtie2', 'tophat2', 'rsem-calculate-expression','samtools', 'fastqc', 'matlab', 'htseq-count', 'read_distribution.py']
     exe_dict = {}
     for e in exe_list:
         which_str = 'which' + ' ' + e 
@@ -557,12 +614,10 @@ def main():
         sys.exit('add to path, install, or omit MAPQ plotting')
 
     exe_dict['wiggler_src'] = '/srv/gsfs0/projects/cho/programs/align2rawsignal/src'
-    #print exe_dict
 
     #======================================================================#
     #=============== GENERATE BASH SCRIPTS & EXECUTE=======================#
 
-    print fastq_dict
     for name in fastq_dict.keys():
         fastqFile = fastq_dict[name] 
         uniqueID = name
@@ -579,11 +634,5 @@ def main():
             run_script(bashFileName, machine)
 
         
-
-
-
-
-    
-
 if __name__ == "__main__":
     main()

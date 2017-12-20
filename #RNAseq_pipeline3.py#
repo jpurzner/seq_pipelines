@@ -19,7 +19,7 @@ import sys
 # 3. Run tophat, using existing gene models 
 # 4. Run RSEM 
 # 5. Quantify off of the Gencode genes 
-# 
+
 
 #=========================================================================
 #=============================GLOBAL PARAMETERS===========================       
@@ -74,9 +74,10 @@ def tophat2(tophatString, fileNameDict,bowtieIndex, pairedEnd = False, trim = Tr
         if trim:
             bowtieFastq = fileNameDict['tempFastqFileTrim']
         else:
-            bowtieFastq = fileNameDict['tempFastqFile']
+            bowtieFastq = f
+ileNameDict['tempFastqFile']
         logFile = fileNameDict['logFile']
-        tempFolder = fileNameDict['tempFolder'] + 'tophat/'
+        tempFolder = fileNameDict['tempFolder'] + 'tophat'
         if isinstance(bowtieFastq, list): # fastqFile is a list                                              
             comma_fastq = ','.join(bowtieFastq)
             cmd = "%s -o %s --b2-sensitive -p 4 %s %s >> %s 2>&1" % (tophatString,tempFolder,bowtieIndex,comma_fastq,logFile)
@@ -116,29 +117,21 @@ def count_mRNA(htseq_string, fileNameDict, annotation ):
     cmd = '%s -f bam -s no -a 10 -t exon -i gene_name %s %s > %s' % (htseq_string, tophatBam, annotation, gencodeOut) 
     return cmd
 
-def load_meta(meta_file, pairedEnd):
+def load_meta(meta_file):
     '''
     loads a meta data table into a dictionary 
     the first column should be the desired filename 
     and the second the index for the fastq files 
-    
-    for paired end reads the files are read as a 
-    comma delimited text and stored as a list
     '''
 
-    meta = {} 
+    meta = {}    
     with open(meta_file) as mf:
         for line in mf:
             meta_line = line.split()
-            #if pairedEnd:
-            #    meta[meta_line[1]] = meta_line[0].split(fastqDelimiter)
-            #    if len(meta[meta_line[1]]) == 1:
-            #        sys.exit('paired end selected but index or identifier is not comma delimited')
-            #else:
             meta[meta_line[1]] = meta_line[0]
     return meta
     
-def get_fastq_names(meta, pairedEnd):
+def get_fastq_names(meta):
     '''
     input: meta dictionary from load_meta
          key = index
@@ -158,9 +151,6 @@ def get_fastq_names(meta, pairedEnd):
     the fastq files associated with the index will be treated 
     as biological replicates and merged 
     
-    in the case of paired end reads the files will be stored 
-    as a list of lists 
-
     '''
 
     fastq_files = defaultdict(list)
@@ -194,14 +184,14 @@ def genome_dict(machine = "scg3",  genome = 'mm9'):
 
     if machine == 'scg3' and genome == 'mm9':
         genome_file = {
-           'bowtie2': '/srv/gsfs0/projects/cho/bowtie2_indexes/mm9',
-           'chr_size': '/srv/gsfs0/projects/cho/annotation/mm9_chr_size_noran.txt',
-           'genome_chr': '/srv/gsfs0/projects/cho/genomes/mm9/chr',
-           'mappability': '/srv/gsfs0/projects/cho/genomes/mm9/mappability/globalmap_k20tok54',
-           'RSEM': '/srv/gsfs0/projects/cho/genomes/mm9/RSEM/RSEM',
-           'gencode': '/srv/gsfs0/projects/cho/annotation/gencode.vM1.annotation.gtf'
+           'bowtie2': '/srv/gsfs0/projects/fuller/Jamie/bowtie2_indexes/Mus_musculus/UCSC/mm9/Sequence/Bowtie2Index/genome',
+           'chr_size': '/srv/gsfs0/projects/fuller/Jamie/annotation/mm9_chr_size_noran.txt',
+           'genome_chr': '/srv/gsfs0/projects/fuller/Jamie/genomes/mm9/chr',
+           'mappability': '/srv/gsfs0/projects/fuller/Jamie/genomes/mm9/mappability/globalmap_k20tok54',
+           'RSEM': '/srv/gsfs0/projects/fuller/Jamie/genomes/mm9/RSEM/RSEM',
+           'gencode': '/srv/gsfs0/projects/fuller/Jamie/annotation/gencode.vM1.annotation.gtf'
         }
-    elif machine == 'cho_oro' and genome == 'mm9':
+    elif machine == 'cerebellum' and genome == 'mm9':
         genome_file = {
             'bowtie2': '/tank/genomes/Mus_musculus/UCSC/mm9/Sequence/Bowtie2Index',
             'genome_chr': '/tank/genomes/Mus_musculus/UCSC/mm9/Sequence/Chromosomes',
@@ -209,6 +199,13 @@ def genome_dict(machine = "scg3",  genome = 'mm9'):
             'mappability': '/tank/genomes/align2raw/umap/globalmap_k20tok54',
             'RSEM': '/tank/genomes/Mus_musculus/RSEM/RSEM',
             'gencode': '/srv/gsfs0/projects/cho/annotation'
+        }
+    elif machine == 'scg3' and genome == 'hg19':
+        genome_file = {
+            'bowtie2': '/srv/gsfs0/projects/fuller/Jamie/bowtie2_indexes/hg19',
+            'genome_chr': '/srv/gsfs0/projects/fuller/Jamie/genomes/hg19',
+            'chr_size': '/srv/gsfs0/projects/fuller/Jamie/annotation/hg19.chrom.sizes',
+            'gencode': '/srv/gsfs0/projects/fuller/Jamie/annotation/gencode.v19.annotation.gtf'
         }
     else: 
         print "error: machine not specified or no information given"
@@ -513,7 +510,7 @@ def main():
     parser.add_argument('-m','--meta', help='table containing new_filename<tab>index, the index can be any text used to uniquely identify the fastq files', required=True)
     parser.add_argument('-o','--output', help='directory to create new files in, default is current working directory', default='',  required=False)
     parser.add_argument('-d','--directory', help='directory storing fastq files, default current working directory', default='',  required=False)
-    parser.add_argument('-c','--machine', help='speficies the paths for genome.fa, chr sizes and bowtie2 index for a given system', default='scg3', choices=['scg3','cho_oro'], required=False)
+    parser.add_argument('-c','--machine', help='speficies the paths for genome.fa, chr sizes and bowtie2 index for a given system', default='scg3', choices=['scg3','cerebellum'], required=False)
     parser.add_argument('-g','--genome', help='specifies the genome to be used for mapping', default='mm9', required=False)
     parser.add_argument('-p','--paired', help='flag specifies paired end, without flag assumes single end reads', action='store_true', required=False)
     parser.add_argument('-l','--readlen', help='specify the length of reads, default 50 bp', default=50,  required=False)
@@ -530,15 +527,13 @@ def main():
     #============== PROCESS INPUT ARGUMENTS ===============================#
 
     # process meta data and validate existence of index 
+    meta = load_meta(args.meta)
+    fastq_dict = get_fastq_names(meta)
     machine = args.machine
     genome = args.genome
     genome_files = genome_dict(machine = machine, genome = genome) 
     pairedEnd = args.paired
     
-    # use meta table to specify combinations of filenames 
-    meta = load_meta(args.meta, pairedEnd)
-    fastq_dict = get_fastq_names(meta, pairedEnd)
-
     trim = not args.no_trim
     
     readlen = int(args.readlen)
