@@ -33,7 +33,6 @@ THE SOFTWARE.
 import string
 import random
 import os
-import sys 
 
 #===================================================================
 #==========================GLOBAL PARAMETERS========================
@@ -84,83 +83,59 @@ def makeFileNameDict(fastqFile, fastqDir,tempString,tempParentFolder,finalParent
 
     fileNameDict = {}
     
-    fastqName = uniqueID
-    fileNameDict['fastqName'] = uniqueID
+    # check if the file is a list or a string 
+    
+    if pairedEnd:
+        #### NEED TO FIX THIS ###
+        #if isinstance(fastqFile, list): # fastqFile is a list
+        fastqFileList = lane.split(fastqDelimiter)
+        fileNameDict['fastqFile_1'] = fastqFileList[0]
+        fileNameDict['fastqFile_2'] = fastqFileList[1]
+    else:
+        fileNameDict['fastqFile'] = [fastqDir + s  for s in fastqFile]       
+    
 
-    #make the temp Folder and final folder 
-    tempFolder = tempParentFolder + 'bwt_' + fastqName + tempString + '/'
+    if uniqueID == '':
+        fastqName = fastqFile.split('/')[-1]
+        fastqName = stripExtension(fastqName)
+
+    else:
+        fastqName = uniqueID
+
+    fileNameDict['fastqName'] = fastqName
+
+    #make the temp Folder
+    tempFolder = tempParentFolder + 'bwt_' + fastqName + tempString + '/'    
     fileNameDict['tempFolder'] = tempFolder
+    
 
     finalFolder = finalParentFolder + fastqName + '/'
 
 
+    # make names for fastq files
     if pairedEnd:
-        # check that there are even number of entries 
-        # the order of the fastq files maintains the index values  
-        print(len(fastqFile))
-        if (len(fastqFile) % 2 == 0):  
-            if (len(fastqFile) == 2):    
-                fileNameDict['fastqFile_1'] = fastqDir + fastqFile[0]
-                fileNameDict['fastqFile_2'] = fastqDir + fastqFile[1]
-                
-                tempFastqFile1 = tempFolder + fastqName + '_1.rawFastq'
-                fileNameDict['tempFastqFile_1'] = tempFastqFile1
-                tempFastqFileTrim = tempFolder + fastqName + '_1_trim' + '.rawFastq'
-                fileNameDict['tempFastqFileTrim_1'] = tempFastqFileTrim
-               
-                tempFastqFile2 = tempFolder + fastqName + '_2.rawFastq'
-                fileNameDict['tempFastqFile_2'] = tempFastqFile2
-                tempFastqFileTrim = tempFolder + fastqName + '_2_trim' + '.rawFastq'
-                fileNameDict['tempFastqFileTrim_2'] = tempFastqFileTrim
-
-            else: 
-                fileNameDict['fastqFile_1'] = []
-                fileNameDict['fastqFile_2'] = []
-                fileNameDict['tempFastqFile_1'] = []
-                fileNameDict['tempFastqFile_2'] = []
-                fileNameDict['tempFastqFileTrim_1'] = []
-                fileNameDict['tempFastqFileTrim_2'] = []
-
-                # loop through the list of fastq files and add to appropriate group
-                for i in range(0, len(fastqFile), 2):
-                    fileNameDict['fastqFile_1'].append(fastqDir + fastqFile[i])
-                    fileNameDict['fastqFile_2'].append(fastqDir + fastqFile[i+1])
-
-                    fileNameDict['tempFastqFile_1'].append(tempFolder 
-                          + stripExtension(fastqFile[i]) + '.rawFastq')
-                    fileNameDict['tempFastqFile_2'].append(tempFolder 
-                          + stripExtension(fastqFile[i+1]) + '.rawFastq')
-
-                    fileNameDict['tempFastqFileTrim_1'].append(tempFolder
-                          + stripExtension(fastqFile[i]) + '_trim' +  '.rawFastq')
-                    fileNameDict['tempFastqFileTrim_2'].append(tempFolder 
-                          + stripExtension(fastqFile[i+1]) + '_trim' + '.rawFastq')
-        else: 
-            sys.exit("error: paired end called but odd number of fastq files given")
-  
-    # for both single end and paired end files
-    # aslo assign names to the same fastqFile used by single end to ease 
-    # fastqc and removal of temp files 
-    fileNameDict['fastqFile'] = [fastqDir + s  for s in fastqFile]       
-    tempFastqFile = [tempFolder + stripExtension(f) + '.rawFastq' for f in fastqFile]
-    tempFastqFileTrim = [tempFolder + stripExtension(f) + '_trim'  + '.rawFastq' for f in fastqFile]
-    fileNameDict['tempFastqFile'] = tempFastqFile
-    fileNameDict['tempFastqFileTrim'] = tempFastqFileTrim
-
-    print(fileNameDict)
-
-
-        # modified to handle list of fastq files
+        #### NEED TO FIX #####
         #if isinstance(fastqFile, list): # fastqFile is a list
-        #    tempFastqFile = [tempFolder + stripExtension(f) + '.rawFastq' for f in fastqFile]
-        #    tempFastqFileTrim = [tempFolder + stripExtension(f) + '_trim'  + '.rawFastq' for f in fastqFile]
-        #    fileNameDict['tempFastqFile'] = tempFastqFile
-        #    fileNameDict['tempFastqFileTrim'] = tempFastqFileTrim
-        #else:
-        #    tempFastqFile = tempFolder + fastqName + '.rawFastq'
-        #    tempFastqFileTrim = tempFolder + fastqName + '_trim' + '.rawFastq'
-        #    fileNameDict['tempFastqFile'] = tempFastqFile
-        #    fileNameDict['tempFastqFileTrim'] = tempFastqFileTrim
+        #    tempFastqFile1 = [tempFolder + stripExtension(f) + '.rawFastq' for f in fastqFile]
+
+        tempFastqFile1 = tempFolder + fastqName + '_1.rawFastq'
+        fileNameDict['tempFastqFile_1'] = tempFastqFile1
+
+        tempFastqFile2 = tempFolder + fastqName + '_2.rawFastq'
+        fileNameDict['tempFastqFile_2'] = tempFastqFile2
+
+    else:
+        # modified to handle list of fastq files
+        if isinstance(fastqFile, list): # fastqFile is a list
+            tempFastqFile = [tempFolder + stripExtension(f) + '.rawFastq' for f in fastqFile]
+            tempFastqFileTrim = [tempFolder + stripExtension(f) + '_trim'  + '.rawFastq' for f in fastqFile]
+            fileNameDict['tempFastqFile'] = tempFastqFile
+            fileNameDict['tempFastqFileTrim'] = tempFastqFileTrim
+        else:
+            tempFastqFile = tempFolder + fastqName + '.rawFastq'
+            tempFastqFileTrim = tempFolder + fastqName + '_trim' + '.rawFastq'
+            fileNameDict['tempFastqFile'] = tempFastqFile
+            fileNameDict['tempFastqFileTrim'] = tempFastqFileTrim
     
     tophatBam = tempFolder + 'tophat/accepted_hits.bam'
     fileNameDict['tophatBam'] = tophatBam
@@ -180,28 +155,25 @@ def makeFileNameDict(fastqFile, fastqDir,tempString,tempParentFolder,finalParent
     tempBamFile = tempFolder + fastqName + '.bam'
     fileNameDict['tempBamFile'] = tempBamFile
 
-    finalBamFile = finalFolder + fastqName + '.bam'
-    fileNameDict['finalBamFile'] = finalBamFile
-
-    tempSortedBamFile = finalFolder + fastqName + '_sort.bam'
+    tempSortedBamFile = tempFolder + fastqName + '_sort.bam'
     fileNameDict['tempSortedBamFile'] = tempSortedBamFile
 
-    tempRmdupBamFile = finalFolder + fastqName + '_sort_rmdup.bam'
+    tempRmdupBamFile = tempFolder + fastqName + '_sort_rmdup.bam'
     fileNameDict['tempRmdupBamFile'] = tempRmdupBamFile
 
-    temptagAlignFile = finalFolder + fastqName + '.tagAlign'
+    temptagAlignFile = tempFolder + fastqName + '.tagAlign'
     fileNameDict['temptagAlignFile'] = temptagAlignFile
 
-    wigglerFile = finalFolder + fastqName + '_norm.bedgraph'
+    wigglerFile = tempFolder + fastqName + '_norm.bedgraph'
     fileNameDict['wigglerFile'] = wigglerFile
     
-    wigglerLog = finalFolder + fastqName + '_norm.log'
+    wigglerLog = tempFolder + fastqName + '_norm.log'
     fileNameDict['wigglerLog'] = wigglerLog
 
-    bedchrFile = finalFolder + fastqName + '_bedgraph_chr.txt'
+    bedchrFile = tempFolder + fastqName + '_bedgraph_chr.txt'
     fileNameDict['bedchrFile'] = bedchrFile
 
-    tdfFile = finalFolder + fastqName + '_norm.tdf'
+    tdfFile = tempFolder + fastqName + '_norm.tdf'
     fileNameDict['tdfFile'] = tdfFile
 
     groupHeader = tempFolder + fastqName 
@@ -226,24 +198,17 @@ def extractFastqCmd(fileNameDict,pairedEnd = False):
         fastqList = []
         fastqFile1 = fileNameDict['fastqFile_1']
         tempFastqFile1 = fileNameDict['tempFastqFile_1']
+        fastqList.append([fastqFile1,tempFastqFile1])
+
         fastqFile2 = fileNameDict['fastqFile_2']
         tempFastqFile2 = fileNameDict['tempFastqFile_2']
-
-        if isinstance(fastqFile1, list): # fastqFile is a list 
-            fastqList1 = [list(i) for i in zip(fastqFile1, tempFastqFile1)]
-            fastqList2 = [list(i) for i in zip(fastqFile2, tempFastqFile2)]
-            fastqList = fastqList1 + fastqList2
-        else: 
-            fastqList.append(fastqFile1)
-            fastqList.append(tempFastqFile1)
-            fastqList.append(fastqFile2)
-            fastqList.append(tempFastqFile2)
+        fastqList.append([fastqFile2,tempFastqFile2])
+        
     else:
         fastqFile = fileNameDict['fastqFile']
         tempFastqFile = fileNameDict['tempFastqFile']
         fastqList = [list(i) for i in zip(fastqFile, tempFastqFile)]
 
-    print(fastqList)
     cmdList = []
 
     for [fastqFile,tempFastqFile] in fastqList:  # initially used to handle paired end 
@@ -273,7 +238,7 @@ def runFastQC(fastqcString,fileNameDict,pairedEnd = False, trim = False):
     '''
     cmd to run fastqc
     modified to accept lists of fastq files and run on trimmed data 
-    
+    '''
 
     if pairedEnd: ##needs to be fixed 
         fastqName = fileNameDict['fastqName']
@@ -285,74 +250,56 @@ def runFastQC(fastqcString,fileNameDict,pairedEnd = False, trim = False):
             finalFolder+='/'
         finalFolder1 = finalFolder + '%s_1_fastqc' % (fastqName)
         finalFolder2 = finalFolder + '%s_2_fastqc' % (fastqName)
-        
         cmd = 'mkdir %s\n' % (finalFolder1)
         cmd += 'mkdir %s\n' % (finalFolder2)
+        ## fix to handle list of files
+        cmd += '%s -o %s %s\n' % (fastqcString,finalFolder1,tempFastqFile1)
+        cmd += '%s -o %s %s' % (fastqcString,finalFolder2,tempFastqFile2)
 
+    else: # single end 
+        fastqName = fileNameDict['fastqName']
+        finalFolder = fileNameDict['finalFolder']
+        if finalFolder[-1] != '/':
+            finalFolder+='/'
+
+        # if read trimming selected then re-run on trimmed fastq file
+        if trim: 
+            tempFastqFile = fileNameDict['tempFastqFileTrim']
+            finalFolder += '%s_fastqc_trim' % (fastqName)
+        else:
+            tempFastqFile = fileNameDict['tempFastqFile']    
+            finalFolder += '%s_fastqc' % (fastqName)
+
+        cmd = 'mkdir %s\n' % (finalFolder)
         if isinstance(tempFastqFile, list): # fastqFile is a list
             for f in tempFastqFile:
-                cmd += '%s -o %s %s\n' % (fastqcString,finalFolder1,tempFastqFile1)
-                cmd += '%s -o %s %s\n' % (fastqcString,finalFolder1,tempFastqFile1)
-        else: 
-            cmd += '%s -o %s %s\n' % (fastqcString,finalFolder1,tempFastqFile1)
-            cmd += '%s -o %s %s' % (fastqcString,finalFolder2,tempFastqFile2)
-    '''   
-    fastqName = fileNameDict['fastqName']
-    finalFolder = fileNameDict['finalFolder']
-    if finalFolder[-1] != '/':
-        finalFolder+='/'
-
-    # if read trimming selected then re-run on trimmed fastq file
-    if trim: 
-        tempFastqFile = fileNameDict['tempFastqFileTrim']
-        finalFolder += '%s_fastqc_trim' % (fastqName)
-    else:
-        tempFastqFile = fileNameDict['tempFastqFile']    
-        finalFolder += '%s_fastqc' % (fastqName)
-
-    cmd = 'mkdir %s\n' % (finalFolder)
-    if isinstance(tempFastqFile, list): # fastqFile is a list
-        for f in tempFastqFile:
-            cmd += '%s -o %s %s\n' % (fastqcString,finalFolder,f)
-    else:
-        cmd += '%s -o %s %s' % (fastqcString,finalFolder,tempFastqFile)
+                cmd += '%s -o %s %s\n' % (fastqcString,finalFolder,f)
+        else:
+            cmd += '%s -o %s %s' % (fastqcString,finalFolder,tempFastqFile)
     return cmd
 
 def bowtieCmd(bowtieString,mismatchN,bowtieIndex,fileNameDict, genome = 'mm9', pairedEnd=False, trim = True):
 
     '''
     creates the bowtie command call
-        -x maximum fragment length 
-        -N mismatch 
-        -x genome (bowtie indexes) 
     '''
     
-    logFile = fileNameDict['logFile']    
-    tempSamFile = fileNameDict['tempSamFile']
-    cmd = "export BOWTIE2_INDEXES=%s\n" % (bowtieIndex)
-    
-#calling bowtie
+    #calling bowtie
     if pairedEnd:
-        if trim: 
-            tempFastqFile1 = fileNameDict['tempFastqFileTrim_1']
-            tempFastqFile2 = fileNameDict['tempFastqFileTrim_2']
-        else: 
-            tempFastqFile1 = fileNameDict['tempFastqFile_1']
-            tempFastqFile2 = fileNameDict['tempFastqFile_2']
-        if isinstance(tempFastqFile1, list): # fastqFile is a list
-            comma_fastq1 = ','.join(tempFastqFile1)    
-            comma_fastq2 = ','.join(tempFastqFile2)    
-            cmd += "%s -p 4 -X 2000 -N %s -x %s -1 %s -2 %s -S %s >> %s 2>&1" % (bowtieString,mismatchN, genome,comma_fastq1,comma_fastq2,tempSamFile, logFile)
-        else:
-            cmd += "%s -p 4 -X 2000 -N %s -x %s -1 %s -2 %s -S %s >> %s 2>&1" % (bowtieString,mismatchN, genome,tempFastqFile1,tempFastqFile2,tempSamFile, logFile)
+
+        tempFastqFile1 = fileNameDict['tempFastqFile_1']
+        tempFastqFile2 = fileNameDict['tempFastqFile_2']
+        tempSamFile = fileNameDict['tempSamFile']
+        cmd = "%s -p 4 -X2000 -N %s -x %s -1 %s -2 %s -S %s" % (bowtieString,mismatchN,bowtieIndex,tempFastqFile1,tempFastqFile2,tempSamFile)
 
     else:
         if trim:
             bowtieFastq = fileNameDict['tempFastqFileTrim']
         else:
             bowtieFastq = fileNameDict['tempFastqFile']
-
-
+        logFile = fileNameDict['logFile']
+        tempSamFile = fileNameDict['tempSamFile']
+        cmd = "export BOWTIE2_INDEXES=%s\n" % (bowtieIndex)
         if isinstance(bowtieFastq, list): # fastqFile is a list
             comma_fastq = ','.join(bowtieFastq)
             cmd += "%s -p 4 -N %s -x %s -U %s -S %s >> %s 2>&1" % (bowtieString,mismatchN,genome,comma_fastq,tempSamFile, logFile)
@@ -367,16 +314,25 @@ def removeTempFastqCmd(fileNameDict,pairedEnd = False, trim = False):
     removes the temp fastq
     '''
 
-    if trim: 
-        tempFastqFile = fileNameDict['tempFastqFileTrim']
+    if pairedEnd:
+
+        tempFastqFile1 = fileNameDict['tempFastqFile_1']    
+        tempFastqFile2 = fileNameDict['tempFastqFile_2']    
+        cmd = '/bin/rm -f %s\n' % (tempFastqFile1)
+        cmd += '/bin/rm -f %s' % (tempFastqFile2)
+
     else:
-        tempFastqFile = fileNameDict['tempFastqFile']
-    if isinstance(tempFastqFile, list): # fastqFile is a list
-        cmd = ''
-        for f in tempFastqFile:
-            cmd += '/bin/rm -f %s\n' % (f)     
-    else:
-        cmd = '/bin/rm -f %s' % (tempFastqFile)
+        if trim: 
+            tempFastqFile = fileNameDict['tempFastqFileTrim']
+        else:
+            tempFastqFile = fileNameDict['tempFastqFile']
+        if isinstance(tempFastqFile, list): # fastqFile is a list
+            cmd = ''
+            for f in tempFastqFile:
+                cmd += '/bin/rm -f %s\n' % (f)
+                
+        else:
+            cmd = '/bin/rm -f %s' % (tempFastqFile)
     
     return cmd
 
@@ -411,10 +367,10 @@ def sortBamCmd(samtoolsString,fileNameDict):
     '''
     uses smatools to sort the bam
     '''
-    finalBamFile = fileNameDict['finalBamFile']
+    tempBamFile = fileNameDict['tempBamFile']
     tempSortedBamFile = os.path.splitext(fileNameDict['tempSortedBamFile'])[0]
     
-    cmd = "%s sort '%s' '%s'" % (samtoolsString,finalBamFile,tempSortedBamFile)
+    cmd = "%s sort '%s' '%s'" % (samtoolsString,tempBamFile,tempSortedBamFile)
     return cmd
 
 
@@ -616,7 +572,7 @@ def main():
 
     bashFile.close()
 
-    print "Wrote mapping command to %s" % (bashFileName)
+    print("Wrote mapping command to %s" % (bashFileName))
 if __name__ == "__main__":
     main()
 
